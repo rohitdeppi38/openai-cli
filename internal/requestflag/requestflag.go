@@ -678,7 +678,11 @@ func parseCLIArg[
 		} else {
 			var yamlValue T
 			err = UnmarshalYAMLOrJSON([]byte(value), &yamlValue)
-			if err == nil {
+			if reflect.TypeFor[T]() == reflect.TypeFor[any]() && !isStructuredYAML(value, yamlValue, err) {
+				// Untyped flags back unions such as string-or-array, so free
+				// text is sent as typed instead of being reinterpreted as YAML.
+				parsedValue, err = value, nil
+			} else if err == nil {
 				parsedValue = yamlValue
 			} else if allowAsLiteralString(value) {
 				parsedValue = value
@@ -727,6 +731,38 @@ func allowAsLiteralString(s string) bool {
 		}
 	}
 	return true
+}
+
+// isStructuredYAML reports whether a value for an untyped flag was written as
+// YAML or JSON rather than free text, given the result of decoding it. Free
+// text must not be decoded: "Translate: hello" would become a mapping, "#1
+// priority" a comment (null), and multi-line text would be folded into one
+// line. A single line is structured only when it is a flow collection, a
+// block sequence, a quoted string, or a non-string scalar such as a number,
+// boolean, or null. Block mappings may also span several lines, as with
+// --tool "$(cat tool.yaml)".
+func isStructuredYAML(value string, decoded any, decodeErr error) bool {
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") ||
+		trimmed == "-" || strings.HasPrefix(trimmed, "- ") {
+		// Report malformed collections rather than sending them as text.
+		return true
+	}
+	multiline := strings.Contains(trimmed, "\n")
+	if decodeErr != nil {
+		return multiline
+	}
+	switch decoded.(type) {
+	case nil:
+		// Comments and empty input also decode to null.
+		return trimmed == "null" || trimmed == "Null" || trimmed == "NULL" || trimmed == "~"
+	case string:
+		return strings.HasPrefix(trimmed, `"`) || strings.HasPrefix(trimmed, "'")
+	case map[string]any, []any:
+		return multiline
+	default:
+		return true
+	}
 }
 
 // Parse the input string and set result as the cliValue's value
