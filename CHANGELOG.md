@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.38.0](https://github.com/openai/openai-cli/compare/v1.37.0...v1.38.0) (2026-10-08)
+
+
+### Features
+
+* **api:** add usage source and user costs grouping ([#376](https://github.com/openai/openai-cli/issues/376)) ([17b9b60](https://github.com/openai/openai-cli/commit/17b9b60b6feae1f4c42df7ce444c0e40d3b377a6))
+* **images:** add native previews for Warp ([#377](https://github.com/openai/openai-cli/issues/377)) ([e433bd2](https://github.com/openai/openai-cli/commit/e433bd26bdc85d31046f32604fa370ef23a54dcc))
+
+
+### Bug Fixes
+
+* **api:** correct custom voice creation parameters ([#385](https://github.com/openai/openai-cli/issues/385)) ([d32b3ae](https://github.com/openai/openai-cli/commit/d32b3ae1d3fbf2445feca289454279407271a983))
+* **images:** align picker borders and refine empty prompts ([#370](https://github.com/openai/openai-cli/issues/370)) ([4cd297a](https://github.com/openai/openai-cli/commit/4cd297a1c8ce002afb4e2c0e4854d34e2315ad29))
+
+
+### Chores
+
+* **deps:** bump the codeql group across 1 directory with 2 updates ([#374](https://github.com/openai/openai-cli/issues/374)) ([8f70d2a](https://github.com/openai/openai-cli/commit/8f70d2abfb914bcb75c91814eda241ad41c41239))
+* **deps:** bump the go-minor-and-patch group across 1 directory with 2 updates ([#373](https://github.com/openai/openai-cli/issues/373)) ([4f808f2](https://github.com/openai/openai-cli/commit/4f808f222df78e33868a7afb038defc55968a53c))
+* **deps:** update openai-go to v3.71.2 ([#375](https://github.com/openai/openai-cli/issues/375)) ([2fff26b](https://github.com/openai/openai-cli/commit/2fff26b68fd33ba77564091dafe7a123d3d58063))
+* **deps:** update openai-go to v3.72.0 ([#378](https://github.com/openai/openai-cli/issues/378)) ([82cdd6e](https://github.com/openai/openai-cli/commit/82cdd6ea61fc2c3c602376f7ad98f88ae1d44efa))
+* **deps:** update openai-go to v3.73.0 ([#380](https://github.com/openai/openai-cli/issues/380)) ([02307cb](https://github.com/openai/openai-cli/commit/02307cb47f804fcf09996e8a57b2bbfb629d4b72))
+
 ## [1.37.0](https://github.com/openai/openai-cli/compare/v1.36.0...v1.37.0) (2026-10-04)
 
 
