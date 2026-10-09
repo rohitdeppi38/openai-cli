@@ -51,8 +51,14 @@ func innerFieldIsSet(inner HasOuterFlag) bool {
 		}
 		_, exists := last[field]
 		return exists
+	case string:
+		if mapping, ok := textMapping(values); ok {
+			_, exists := mapping[field]
+			return exists
+		}
 	}
-	return false
+	// Text or null on the command line takes precedence over piped fields.
+	return outerHoldsScalar(outer)
 }
 
 func setFlagFromStdin(flag cli.Flag, value string, onSet func(cli.Flag)) error {

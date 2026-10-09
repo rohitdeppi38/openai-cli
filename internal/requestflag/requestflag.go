@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -678,7 +679,11 @@ func parseCLIArg[
 		} else {
 			var yamlValue T
 			err = UnmarshalYAMLOrJSON([]byte(value), &yamlValue)
-			if err == nil {
+			if reflect.TypeFor[T]() == reflect.TypeFor[any]() && !isStructuredYAML(value, yamlValue, err) {
+				// Untyped flags back unions such as string-or-array, so free
+				// text is sent as typed instead of being reinterpreted as YAML.
+				parsedValue, err = strings.TrimPrefix(value, string(utf8BOM)), nil
+			} else if err == nil {
 				parsedValue = yamlValue
 			} else if allowAsLiteralString(value) {
 				parsedValue = value
@@ -727,6 +732,63 @@ func allowAsLiteralString(s string) bool {
 		}
 	}
 	return true
+}
+
+// textMapping returns the mapping YAML reads from an untyped value that was
+// kept as text, such as "role: user".
+func textMapping(value any) (map[string]any, bool) {
+	text, ok := value.(string)
+	if !ok {
+		return nil, false
+	}
+	var mapping map[string]any
+	if err := UnmarshalYAMLOrJSON([]byte(text), &mapping); err != nil || mapping == nil {
+		return nil, false
+	}
+	return mapping, true
+}
+
+// yamlCoreTags are the explicit tags that mark a value as YAML. Other tags
+// are not checked, so text such as "!!! alert" stays as typed.
+var yamlCoreTags = []string{"!!str", "!!int", "!!float", "!!bool", "!!null", "!!seq", "!!map"}
+
+// isStructuredYAML reports whether a value for an untyped flag was written as
+// YAML or JSON rather than free text, given the result of decoding it. Free
+// text must not be decoded: "Translate: hello" would become a mapping, "#1
+// priority" a comment (null), and multi-line text would be folded into one
+// line. A single line is structured only when it is a flow collection, a
+// block sequence, a quoted string, a value with a core tag such as !!str, or a
+// non-string scalar such as a number, boolean, or null. Block mappings and
+// block scalars such as "|\n  text" may also span several lines, as with
+// --tool "$(cat tool.yaml)". Blank values stay null.
+func isStructuredYAML(value string, decoded any, decodeErr error) bool {
+	// UnmarshalYAMLOrJSON skips a leading byte order mark, so JSON read from
+	// a file that starts with one is still structured.
+	trimmed := strings.TrimSpace(strings.TrimPrefix(value, string(utf8BOM)))
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") ||
+		strings.HasPrefix(trimmed, "- ") {
+		// Report malformed collections rather than sending them as text.
+		return true
+	}
+	multiline := strings.Contains(trimmed, "\n")
+	if decodeErr != nil {
+		return multiline
+	}
+	if fields := strings.Fields(trimmed); len(fields) > 0 && slices.Contains(yamlCoreTags, fields[0]) {
+		return true
+	}
+	switch decoded.(type) {
+	case nil:
+		// Comments also decode to null.
+		return trimmed == "" || trimmed == "null" || trimmed == "Null" || trimmed == "NULL" || trimmed == "~"
+	case string:
+		return strings.HasPrefix(trimmed, `"`) || strings.HasPrefix(trimmed, "'") ||
+			multiline && (strings.HasPrefix(trimmed, "|") || strings.HasPrefix(trimmed, ">"))
+	case map[string]any, []any:
+		return multiline
+	default:
+		return true
+	}
 }
 
 // Parse the input string and set result as the cliValue's value
@@ -953,13 +1015,20 @@ func (f *Flag[T]) SetInnerField(field string, val any) {
 // map[string]any or []map[string]any so subsequent SetInnerField calls have a
 // dispatchable reflect.Kind. For typed Flag[T] this is a no-op: the type
 // assertion fails and the existing reflect.Kind on the typed-nil zero value
-// already routes correctly.
+// already routes correctly. Text that YAML reads as a mapping, such as
+// "role: user", becomes that mapping, since an inner flag needs an object.
 func (f *Flag[T]) SeedInnerCollection(isArrayOfObjects bool) {
 	if f.value == nil {
 		f.value = &cliValue[T]{}
 	}
 	cv, ok := f.value.(*cliValue[T])
 	if !ok {
+		return
+	}
+	if mapping, ok := textMapping(cv.value); ok {
+		if seed, ok := any(mapping).(T); ok {
+			cv.value = seed
+		}
 		return
 	}
 	if reflect.ValueOf(cv.value).Kind() != reflect.Invalid {

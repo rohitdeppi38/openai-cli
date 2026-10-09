@@ -87,6 +87,12 @@ func (f *InnerFlag[T]) Set(name string, rawVal string) error {
 			seeder.SeedInnerCollection(f.OuterIsArrayOfObjects)
 		}
 
+		// An untyped outer flag set to text or another scalar has no field to
+		// set, so report it rather than dropping this value.
+		if outerHoldsScalar(f.OuterFlag) {
+			return fmt.Errorf("cannot set --%s because --%s is not an object", f.Name, f.OuterFlag.Names()[0])
+		}
+
 		if settableInnerField, ok := f.OuterFlag.(SettableInnerField); ok {
 			settableInnerField.SetInnerField(f.InnerField, parsedValue)
 		} else {
@@ -94,6 +100,19 @@ func (f *InnerFlag[T]) Set(name string, rawVal string) error {
 		}
 		return nil
 	}
+}
+
+// outerHoldsScalar reports whether an outer flag was set to text, null, or
+// another value that has no fields for its inner flags to set.
+func outerHoldsScalar(outer cli.Flag) bool {
+	if !outer.IsSet() {
+		return false
+	}
+	switch reflect.ValueOf(outer.Get()).Kind() {
+	case reflect.Map, reflect.Slice, reflect.Invalid:
+		return false
+	}
+	return true
 }
 
 func (f *InnerFlag[T]) Get() any {

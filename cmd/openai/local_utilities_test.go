@@ -188,7 +188,7 @@ func TestMainLocalUtilitiesPreserveRemoteTokenCounter(t *testing.T) {
 			[]string{"responses", "input-tokens", "count", "--model", "codex", "--input", `"tokenizer\nsynthetic"`}},
 		{"legacy", "", `{"model":"tokenizer","input":"codex\nsynthetic"}`,
 			[]string{"responses:input-tokens", "count", "--model", "tokenizer", "--input", `"codex\nsynthetic"`}},
-		{"YAML scalar compatibility", "", `{"model":"codex","input":"tokenizer synthetic"}`,
+		{"plain text", "", `{"model":"codex","input":"tokenizer\nsynthetic"}`,
 			[]string{"responses", "input-tokens", "count", "--model", "codex", "--input", "tokenizer\nsynthetic"}},
 		{"piped JSON", `{"model":"codex","input":"tokenizer\nsynthetic"}`,
 			`{"model":"codex","input":"tokenizer\nsynthetic"}`, []string{"responses", "input-tokens", "count"}},

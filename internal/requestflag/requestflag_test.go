@@ -631,6 +631,106 @@ func TestYamlHandling(t *testing.T) {
 	})
 }
 
+// TestUntypedFlagFreeText pins that untyped flags, which back union schemas
+// such as string-or-array (--input, --stop, --prompt, --query), send free text
+// as typed and decode only values written as structured YAML or JSON.
+func TestUntypedFlagFreeText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		value string
+		want  string
+	}{
+		// Free text is sent exactly as typed.
+		{"Translate: hello", `"Translate: hello"`},
+		{"error: timeout", `"error: timeout"`},
+		{"Human:", `"Human:"`},
+		{"#1 priority", `"#1 priority"`},
+		{"###", `"###"`},
+		{"hello # world", `"hello # world"`},
+		{"line one\nline two", `"line one\nline two"`},
+		{"line one\r\nline two", `"line one\r\nline two"`},
+		{"Translate: hello\n", `"Translate: hello\n"`},
+		{"  padded  ", `"  padded  "`},
+		{"a\tb", `"a\tb"`},
+		{"-", `"-"`},
+		{"|", `"|"`},
+		{"!!! alert", `"!!! alert"`},
+		{string(utf8BOM) + "hello", `"hello"`},
+		{"a: b: c", `"a: b: c"`},
+		{"*Important*: read this", `"*Important*: read this"`},
+		{"`code` sample", "\"`code` sample\""},
+		{"Say this is a test", `"Say this is a test"`},
+		{"auto", `"auto"`},
+		{"conv_123", `"conv_123"`},
+		// A single-line mapping cannot be told apart from text; objects
+		// use the flow or JSON form instead.
+		{"type: function", `"type: function"`},
+
+		// Structured values are still decoded.
+		{"[1, 2, 3]", `[1, 2, 3]`},
+		{"{type: function}", `{"type": "function"}`},
+		{"{type: function, name: f}", `{"type": "function", "name": "f"}`},
+		{`{"role": "user", "content": "hi"}`, `{"role": "user", "content": "hi"}`},
+		{string(utf8BOM) + `{"role": "user"}`, `{"role": "user"}`},
+		{string(utf8BOM) + "[1, 2]", `[1, 2]`},
+		{"role: user\ncontent: hi", `{"role": "user", "content": "hi"}`},
+		{"- first\n- second", `["first", "second"]`},
+		{"- {name: first}", `[{"name": "first"}]`},
+		{"|\n  line one\n  line two", `"line one\nline two"`},
+		{"!!str 123", `"123"`},
+		{`"quoted: yes"`, `"quoted: yes"`},
+		{`'#1 priority'`, `"#1 priority"`},
+		{"100", `100`},
+		{"1.5", `1.5`},
+		{"true", `true`},
+		{"null", `null`},
+		{"~", `null`},
+
+		// Blank values stay null.
+		{"", `null`},
+		{" \t\n", `null`},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%q", tt.value), func(t *testing.T) {
+			t.Parallel()
+
+			flag := &Flag[any]{Name: "input"}
+			assert.NoError(t, flag.PreParse())
+			assert.NoError(t, flag.Set("input", tt.value))
+			got, err := json.Marshal(flag.Get())
+			assert.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(got))
+
+			outer := &Flag[map[string]any]{Name: "prediction"}
+			assert.NoError(t, outer.PreParse())
+			inner := &InnerFlag[any]{Name: "prediction.content", InnerField: "content", OuterFlag: outer}
+			assert.NoError(t, inner.Set("prediction.content", tt.value))
+			got, err = json.Marshal(outer.Get())
+			assert.NoError(t, err)
+			assert.JSONEq(t, `{"content": `+tt.want+`}`, string(got))
+		})
+	}
+
+	t.Run("malformed structured values are reported", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"[not closed", "{key:", "- [not closed", "role: user\n  content: [hi"} {
+			cv := &cliValue[any]{}
+			assert.Error(t, cv.Set(value), "value %q", value)
+		}
+	})
+
+	t.Run("typed flags still decode single-line YAML", func(t *testing.T) {
+		t.Parallel()
+
+		cv := &cliValue[map[string]any]{}
+		assert.NoError(t, cv.Set("key: value"))
+		assert.Equal(t, map[string]any{"key": "value"}, cv.Get())
+	})
+}
+
 // TestNullLiteralHandling pins how each Flag[T] type handles the literal value "null"
 // when passed via the CLI. Pointer-typed flags serialize nil as JSON null, which is how
 // nullable body fields (`anyOf: [T, null]` / `{nullable: true}`) let users clear a field
