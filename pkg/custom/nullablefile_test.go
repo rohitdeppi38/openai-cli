@@ -106,7 +106,7 @@ func TestNullableFileReferencesEndToEnd(t *testing.T) {
 				require.Nil(t, body)
 				return
 			}
-			require.NoError(t, err, "%s", stderr.String())
+			require.NoError(t, err, "context: %v; request received: %t\n%s", ctx.Err(), body != nil, stderr.String())
 			require.Empty(t, stderr.String())
 			require.NotNil(t, body, "CLI did not send a request")
 			var fields map[string]any
