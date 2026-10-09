@@ -21,6 +21,15 @@ else
   exit 1
 fi
 
+pid_file=""
+if [[ "${1:-}" == --daemon && "${2:-}" == --pid-file ]]; then
+  if [[ $# -ne 3 || -z "$3" ]]; then
+    echo "Usage: $0 [SPEC] --daemon --pid-file PATH" >&2
+    exit 1
+  fi
+  pid_file="$3"
+fi
+
 echo "==> Starting mock server with URL ${URL}"
 
 STEADY="$(./scripts/steady/install --print-executable)"
@@ -38,15 +47,30 @@ STEADY_ARGS=(
 # Run steady mock on the given spec.
 if [ "$1" == "--daemon" ]; then
   "$STEADY" "${STEADY_ARGS[@]}" &> .stdy.log &
+  steady_pid=$!
+  # Until startup succeeds, this launcher retains responsibility for its child.
+  trap 'kill "$steady_pid" 2>/dev/null || true; wait "$steady_pid" 2>/dev/null || true' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
 
   # Wait for server to come online via health endpoint (max 30s)
   echo -n "Waiting for server"
   attempts=0
-  while ! curl --silent --fail "http://127.0.0.1:4010/_x-steady/health" >/dev/null 2>&1; do
-    if ! kill -0 $! 2>/dev/null; then
+  while true; do
+    if ! kill -0 "$steady_pid" 2>/dev/null; then
       echo
       cat .stdy.log
       exit 1
+    fi
+    if curl --silent --fail "http://127.0.0.1:4010/_x-steady/health" >/dev/null 2>&1; then
+      # A different listener can answer while our child fails to bind.
+      if ! kill -0 "$steady_pid" 2>/dev/null; then
+        echo
+        cat .stdy.log
+        exit 1
+      fi
+      break
     fi
     attempts=$((attempts + 1))
     if [ "$attempts" -ge 300 ]; then
@@ -59,6 +83,10 @@ if [ "$1" == "--daemon" ]; then
     sleep 0.1
   done
 
+  if [[ -n "$pid_file" ]]; then
+    printf '%s\n' "$steady_pid" > "$pid_file"
+  fi
+  trap - EXIT INT TERM HUP
   echo
 else
   "$STEADY" "${STEADY_ARGS[@]}"
