@@ -93,6 +93,9 @@ func TestLookupFontPSMissingOrUnsafeFiles(t *testing.T) {
 	if err := os.WriteFile(path, []byte("synthetic"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := g.LookupFontPS(t.Context(), name); err == nil {
 		t.Fatal("non-private font accepted")
 	}
