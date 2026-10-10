@@ -235,7 +235,8 @@ func TestEmbedFiles(t *testing.T) {
 		t.Run(tt.name+" io.Reader", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := embedFiles(tt.input, EmbedIOReader, nil)
+			got, err := embedFiles(tt.input, EmbedIOReader, nil)
+			t.Cleanup(func() { require.NoError(t, closeFileUploads(got)) })
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

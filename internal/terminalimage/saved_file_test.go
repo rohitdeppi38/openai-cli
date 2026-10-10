@@ -85,6 +85,10 @@ func TestReadSavedFileRejectsNonRegularDescriptor(t *testing.T) {
 	_, err = readSavedFile(ctx, reader, nil)
 	require.ErrorIs(t, err, context.Canceled)
 	require.NoError(t, reader.Close())
+	_, statErr := reader.Stat()
+	var pathErr *os.PathError
+	require.ErrorAs(t, statErr, &pathErr)
 	_, err = readSavedFile(t.Context(), reader, nil)
-	require.ErrorIs(t, err, os.ErrClosed)
+	// File.Stat reports an invalid handle rather than os.ErrClosed on Windows.
+	require.ErrorIs(t, err, pathErr.Err)
 }

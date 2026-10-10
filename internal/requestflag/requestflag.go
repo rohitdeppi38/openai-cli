@@ -741,15 +741,8 @@ func (c *cliValue[T]) Set(value string) error {
 		var err error
 		switch elemType.Kind() {
 		case reflect.String:
-			singleElem, err = parseCLIArg[string](value)
-		case reflect.Int64:
-			singleElem, err = parseCLIArg[int64](value)
-		case reflect.Float64:
-			singleElem, err = parseCLIArg[float64](value)
-		case reflect.Bool:
-			singleElem, err = parseCLIArg[bool](value)
-		default:
-			// Check for special types by name
+			// Date and time values have string kind, but must retain their
+			// named types and scalar validation before being appended.
 			switch elemType.Name() {
 			case "DateTimeValue":
 				singleElem, err = parseCLIArg[DateTimeValue](value)
@@ -758,12 +751,20 @@ func (c *cliValue[T]) Set(value string) error {
 			case "TimeValue":
 				singleElem, err = parseCLIArg[TimeValue](value)
 			default:
-				// This handles []map[string]any
-				if elemType.Kind() == reflect.Map && elemType.Key().Kind() == reflect.String {
-					singleElem, err = parseCLIArg[map[string]any](value)
-				} else {
-					singleElem, err = parseCLIArg[any](value)
-				}
+				singleElem, err = parseCLIArg[string](value)
+			}
+		case reflect.Int64:
+			singleElem, err = parseCLIArg[int64](value)
+		case reflect.Float64:
+			singleElem, err = parseCLIArg[float64](value)
+		case reflect.Bool:
+			singleElem, err = parseCLIArg[bool](value)
+		default:
+			// This handles []map[string]any
+			if elemType.Kind() == reflect.Map && elemType.Key().Kind() == reflect.String {
+				singleElem, err = parseCLIArg[map[string]any](value)
+			} else {
+				singleElem, err = parseCLIArg[any](value)
 			}
 		}
 

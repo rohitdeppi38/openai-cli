@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -86,17 +87,38 @@ func TestNewMTLSHTTPClient(t *testing.T) {
 	t.Run("does not expose supplied values in file errors", func(t *testing.T) {
 		t.Parallel()
 
+		fileError := func(kind string) string {
+			// Newlines are invalid filename characters on Windows. Unix
+			// instead accepts the name and reports that it does not exist.
+			if runtime.GOOS == "windows" {
+				return "could not read mTLS client " + kind + " file"
+			}
+			return "mTLS client " + kind + " file does not exist"
+		}
 		inlineCertificate := "-----BEGIN CERTIFICATE-----\nsensitive-certificate-value\n-----END CERTIFICATE-----"
 		_, err := newMTLSHTTPClient(inlineCertificate, "key.pem", "https://api.example.test")
-		require.EqualError(t, err, "mTLS client certificate file does not exist")
+		require.EqualError(t, err, fileError("certificate"))
 		assert.NotContains(t, err.Error(), inlineCertificate)
 
 		certFile := filepath.Join(t.TempDir(), "certificate.pem")
 		require.NoError(t, os.WriteFile(certFile, []byte("not a certificate"), 0o600))
 		inlineKey := "-----BEGIN PRIVATE KEY-----\nsensitive-private-key-value\n-----END PRIVATE KEY-----"
 		_, err = newMTLSHTTPClient(certFile, inlineKey, "https://api.example.test")
-		require.EqualError(t, err, "mTLS client key file does not exist")
+		require.EqualError(t, err, fileError("key"))
 		assert.NotContains(t, err.Error(), inlineKey)
+	})
+
+	t.Run("reports missing files", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		certFile := filepath.Join(dir, "certificate.pem")
+		keyFile := filepath.Join(dir, "key.pem")
+		_, err := newMTLSHTTPClient(certFile, keyFile, "https://api.example.test")
+		require.EqualError(t, err, "mTLS client certificate file does not exist")
+		require.NoError(t, os.WriteFile(certFile, []byte("not a certificate"), 0o600))
+		_, err = newMTLSHTTPClient(certFile, keyFile, "https://api.example.test")
+		require.EqualError(t, err, "mTLS client key file does not exist")
 	})
 
 	t.Run("rejects an invalid pair without exposing contents", func(t *testing.T) {

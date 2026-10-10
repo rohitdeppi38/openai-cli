@@ -10,15 +10,14 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
 function steady_is_running() {
-  curl --silent "http://127.0.0.1:4010/_x-steady/health" >/dev/null 2>&1
+  curl --silent --fail "http://127.0.0.1:4010/_x-steady/health" >/dev/null 2>&1
 }
 
-kill_server_on_port() {
-  pids=$(lsof -t -i tcp:"$1" || echo "")
-  if [ "$pids" != "" ]; then
-    kill "$pids"
-    echo "Stopped $pids."
+stop_owned_mock() {
+  if [[ "$mock_pid" =~ ^[1-9][0-9]*$ && "$mock_pid" != 1 ]]; then
+    kill "$mock_pid" 2>/dev/null || true
   fi
+  rm -f -- "$mock_pid_file" || true
 }
 
 function is_overriding_api_base_url() {
@@ -26,11 +25,14 @@ function is_overriding_api_base_url() {
 }
 
 if ! is_overriding_api_base_url && ! steady_is_running ; then
-  # When we exit this script, make sure to kill the background mock server process
-  trap 'kill_server_on_port 4010' EXIT
+  # Only stop the process started for this invocation, never a port's occupant.
+  mock_pid_file="$(mktemp)"
+  mock_pid=""
+  trap 'mock_status=$?; stop_owned_mock; exit "$mock_status"' EXIT
 
   # Start the dev server
-  ./scripts/mock --daemon
+  ./scripts/mock --daemon --pid-file "$mock_pid_file"
+  mock_pid="$(cat -- "$mock_pid_file" 2>/dev/null)" || mock_pid=""
 fi
 
 if is_overriding_api_base_url ; then

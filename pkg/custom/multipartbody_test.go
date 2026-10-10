@@ -139,7 +139,7 @@ func TestMultipartRequestBodyClosesOpenedFiles(t *testing.T) {
 	_, err = io.ReadAll(body)
 	require.NoError(t, err)
 	waitForMultipartBody(t, body)
-	_, err = file.Stat()
+	_, err = file.Read(make([]byte, 1))
 	require.ErrorIs(t, err, os.ErrClosed)
 	require.NoError(t, body.Close())
 }
@@ -337,7 +337,7 @@ func TestMultipartRequestOptionsDoNotRetryUploads(t *testing.T) {
 	_, err = client.Files.New(context.Background(), openai.FileNewParams{}, options...)
 	require.Error(t, err)
 	require.Equal(t, int32(1), requestCount.Load())
-	_, err = sourceFile.Stat()
+	_, err = sourceFile.Read(make([]byte, 1))
 	require.ErrorIs(t, err, os.ErrClosed)
 }
 
@@ -364,7 +364,7 @@ func TestMultipartRequestOptionsPreserveIncompleteTransportError(t *testing.T) {
 	_, err = client.Files.New(context.Background(), openai.FileNewParams{}, options...)
 	require.ErrorIs(t, err, transportErr)
 	require.Equal(t, int32(1), doer.calls.Load())
-	_, err = sourceFile.Stat()
+	_, err = sourceFile.Read(make([]byte, 1))
 	require.ErrorIs(t, err, os.ErrClosed)
 }
 
@@ -554,7 +554,7 @@ func TestOpenFileUploadStreamsProcfsWithUnknownLength(t *testing.T) {
 
 	_, err = client.Files.New(context.Background(), openai.FileNewParams{}, options...)
 	require.NoError(t, err)
-	_, err = sourceFile.Stat()
+	_, err = sourceFile.Read(make([]byte, 1))
 	require.ErrorIs(t, err, os.ErrClosed)
 }
 

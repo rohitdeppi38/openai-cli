@@ -29,6 +29,9 @@ func TestPickerInstallRoundTrip(t *testing.T) {
 			t.Run(string(shell)+"/"+original, func(t *testing.T) {
 				options := pickerInstallFixture(t, shell)
 				require.NoError(t, os.WriteFile(options.Profile, []byte(original), 0640))
+				if runtime.GOOS != "windows" {
+					require.NoError(t, os.Chmod(options.Profile, 0640))
+				}
 				installed, err := IsPickerInstalled(context.Background(), options)
 				require.NoError(t, err)
 				require.False(t, installed)

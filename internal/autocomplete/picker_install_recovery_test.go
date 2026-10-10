@@ -386,6 +386,9 @@ func pickerRecoveryInterruptAfterCapture(t *testing.T, options PickerInstallatio
 func TestPickerProfileRecoveryPrivateManifest(t *testing.T) {
 	options := pickerInstallFixture(t, CompletionStyleZsh)
 	require.NoError(t, os.WriteFile(options.Profile, []byte("# private synthetic setting\n"), 0640))
+	if runtime.GOOS != "windows" {
+		require.NoError(t, os.Chmod(options.Profile, 0640))
+	}
 	_, err := InstallPicker(t.Context(), options)
 	require.NoError(t, err)
 	archives := pickerRecoveryArchives(t, options.Profile)
